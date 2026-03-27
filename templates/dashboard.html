@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Roboto',sans-serif;}
+body{background:linear-gradient(135deg,#00c6ff,#0072ff);min-height:100vh;}
+.navbar{background:#fff;display:flex;justify-content:space-between;align-items:center;padding:15px 30px;box-shadow:0 4px 10px rgba(0,0,0,0.15);}
+.navbar .logo{font-weight:700;color:#0072ff;font-size:24px;}
+.navbar .menu a{margin:0 15px;color:#0072ff;text-decoration:none;font-weight:500;transition:.3s;}
+.navbar .menu a:hover{color:#005ecb;}
+.navbar .wallet{font-weight:500;color:#333;}
+.container{display:flex;justify-content:center;align-items:center;flex-direction:column;margin-top:50px;}
+.card{background:#fff;padding:50px 40px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.2);text-align:center;animation:fadeIn 0.8s ease-in-out;width:400px;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-20px);}to{opacity:1;transform:translateY(0);}}
+h1{margin-bottom:10px;color:#333;}
+.counter{font-size:80px;font-weight:700;color:#0072ff;margin:20px 0;transition:transform 0.2s;}
+.counter.animate{transform:scale(1.2);}
+button{padding:15px 30px;font-size:18px;font-weight:500;background:#0072ff;color:#fff;border:none;border-radius:10px;cursor:pointer;transition:.3s;}
+button:hover{background:#005ecb;}
+.add-wallet{margin-top:20px;display:flex;justify-content:center;gap:10px;}
+.add-wallet input{width:100px;padding:10px;border-radius:8px;border:1px solid #ccc;}
+.add-wallet button{padding:10px 20px;}
+.logout{margin-top:20px;display:inline-block;color:#0072ff;text-decoration:none;}
+.logout:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <div class="logo">GameZone</div>
+  <div class="menu">
+    {% for game in games %}
+      <a href="#">{{ game }}</a>
+    {% endfor %}
+  </div>
+  <div class="wallet">Wallet: $<span id="wallet">{{ wallet }}</span></div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h1>Hello {{ session.username }}!</h1>
+    <div id="counter" class="counter">{{ value }}</div>
+    <button id="incrementBtn">Increment Counter</button>
+
+    <div class="add-wallet">
+      <input type="number" id="walletInput" placeholder="Amount">
+      <button id="addWalletBtn">Add Wallet</button>
+    </div>
+    <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+  </div>
+</div>
+
+<script>
+const counter = document.getElementById('counter');
+const btn = document.getElementById('incrementBtn');
+
+btn.addEventListener('click', async () => {
+  const res = await fetch('{{ url_for("increment") }}',{method:'POST'});
+  const data = await res.json();
+  counter.textContent = data.value;
+  counter.classList.add('animate');
+});
+
+counter.addEventListener('transitionend',()=>{counter.classList.remove('animate');});
+
+// Wallet add
+document.getElementById('addWalletBtn').addEventListener('click', async () => {
+  const amount = parseFloat(document.getElementById('walletInput').value);
+  if(isNaN(amount) || amount<=0) return alert("Enter a valid amount");
+  const res = await fetch('{{ url_for("wallet_add") }}',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({amount})
+  });
+  const data = await res.json();
+  document.getElementById('wallet').textContent = data.wallet;
+  document.getElementById('walletInput').value = '';
+});
+</script>
+</body>
+</html>
