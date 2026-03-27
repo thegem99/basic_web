@@ -1,23 +1,17 @@
-import os
-from flask import Flask, render_template, redirect, request, session, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 import psycopg2
-from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")  # Replace in production
+app.secret_key = "supersecretkey"
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# ---------------- PostgreSQL Connection ----------------
+import os
+DATABASE_URL = os.environ.get("DATABASE_URL")  # Railway provides DATABASE_URL
+conn = psycopg2.connect(DATABASE_URL, sslmode='require')
 
-# ------------------- Database -------------------
-def get_connection():
-    return psycopg2.connect(DATABASE_URL, sslmode="require")
-
+# ---------------- Initialize Tables ----------------
 def init_db():
-    """Create tables if they don't exist"""
-    conn = get_connection()
     cur = conn.cursor()
-
-    # Users table
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -25,115 +19,96 @@ def init_db():
             password TEXT NOT NULL
         );
     """)
-
-    # Counter table (one counter per user)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS counter (
             user_id INTEGER PRIMARY KEY REFERENCES users(id),
             value INTEGER NOT NULL DEFAULT 0
         );
     """)
-
     conn.commit()
     cur.close()
-    conn.close()
 
-# Initialize DB on startup (works with Gunicorn)
-try:
-    init_db()
-except Exception as e:
-    print("Database initialization failed:", e)
+init_db()
 
-# ------------------- Routes -------------------
-
-@app.route("/")
+# ---------------- Routes ----------------
+@app.route('/')
 def home():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
 
-    user_id = session["user_id"]
-    conn = get_connection()
+    user_id = session['user_id']
     cur = conn.cursor()
     cur.execute("SELECT value FROM counter WHERE user_id=%s;", (user_id,))
-    row = cur.fetchone()
-    value = row[0] if row else 0
+    result = cur.fetchone()
+    value = result[0] if result else 0
     cur.close()
-    conn.close()
+    return render_template('counter.html', value=value)
 
-    return render_template("counter.html", value=value)
-
-@app.route("/increment")
-def increment():
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    user_id = session["user_id"]
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO counter (user_id, value)
-        VALUES (%s, 1)
-        ON CONFLICT (user_id) DO UPDATE SET value = counter.value + 1;
-    """, (user_id,))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return redirect(url_for("home"))
-
-@app.route("/register", methods=["GET", "POST"])
+@app.route('/register', methods=['GET','POST'])
 def register():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-        hashed = generate_password_hash(password)
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
 
+        cur = conn.cursor()
         try:
-            conn = get_connection()
-            cur = conn.cursor()
-            cur.execute("INSERT INTO users (username, password) VALUES (%s, %s) RETURNING id;", (username, hashed))
+            cur.execute("INSERT INTO users (username, password) VALUES (%s, %s) RETURNING id;", (username, password))
             user_id = cur.fetchone()[0]
             conn.commit()
-            cur.close()
-            conn.close()
-            flash("Registration successful! Please login.", "success")
-            return redirect(url_for("login"))
+            session['user_id'] = user_id
+            session['username'] = username
+            return redirect(url_for('home'))
         except psycopg2.errors.UniqueViolation:
-            flash("Username already exists.", "error")
             conn.rollback()
+            flash("Username already exists!", "error")
+        finally:
             cur.close()
-            conn.close()
+    return render_template('register.html')
 
-    return render_template("register.html")
-
-@app.route("/login", methods=["GET", "POST"])
+@app.route('/login', methods=['GET','POST'])
 def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
 
-        conn = get_connection()
         cur = conn.cursor()
         cur.execute("SELECT id, password FROM users WHERE username=%s;", (username,))
         user = cur.fetchone()
         cur.close()
-        conn.close()
 
-        if user and check_password_hash(user[1], password):
-            session["user_id"] = user[0]
-            session["username"] = username
-            return redirect(url_for("home"))
+        if user and user[1] == password:
+            session['user_id'] = user[0]
+            session['username'] = username
+            return redirect(url_for('home'))
         else:
-            flash("Invalid credentials", "error")
+            flash("Invalid credentials!", "error")
+    return render_template('login.html')
 
-    return render_template("login.html")
-
-@app.route("/logout")
+@app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for('login'))
 
-# ------------------- Run -------------------
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+# ---------------- Instant AJAX Counter ----------------
+@app.route('/increment', methods=['POST'])
+def increment():
+    if 'user_id' not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = session['user_id']
+    cur = conn.cursor()
+    cur.execute("SELECT value FROM counter WHERE user_id=%s;", (user_id,))
+    result = cur.fetchone()
+    if result:
+        new_value = result[0] + 1
+        cur.execute("UPDATE counter SET value=%s WHERE user_id=%s;", (new_value, user_id))
+    else:
+        new_value = 1
+        cur.execute("INSERT INTO counter (user_id, value) VALUES (%s, %s);", (user_id, new_value))
+    conn.commit()
+    cur.close()
+    return jsonify({"value": new_value})
+
+# ---------------- Run App ----------------
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
