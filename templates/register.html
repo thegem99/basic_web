@@ -1,21 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Register</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family: 'Roboto', sans-serif; }
+    body { height: 100vh; display: flex; justify-content: center; align-items: center; background: linear-gradient(135deg, #ff512f, #dd2476); }
+    .card { background: #fff; padding: 40px 30px; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.2); width: 360px; text-align: center; animation: fadeIn 0.8s ease-in-out; }
+    @keyframes fadeIn { from {opacity:0; transform: translateY(-20px);} to {opacity:1; transform: translateY(0);} }
+    h1 { margin-bottom: 20px; color: #333; }
+    input { width: 100%; padding: 12px 15px; margin: 10px 0 20px 0; border: 1px solid #ccc; border-radius: 8px; transition: 0.3s; }
+    input:focus { border-color: #dd2476; outline: none; box-shadow: 0 0 5px rgba(221,36,118,0.5); }
+    button { width: 100%; padding: 12px; background: #dd2476; color: #fff; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; transition: 0.3s; }
+    button:hover { background: #c21f69; }
+    .footer { margin-top: 15px; font-size: 14px; color: #555; }
+    .footer a { color: #dd2476; text-decoration: none; transition: 0.3s; }
+    .footer a:hover { text-decoration: underline; }
+    .flash { color: red; margin-bottom: 10px; }
+  </style>
 </head>
 <body>
+  <div class="card">
     <h1>Register</h1>
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
-        <p style="color:red">{{ message }}</p>
+        <div class="flash">{{ message }}</div>
       {% endfor %}
     {% endwith %}
-
     <form method="POST">
-        Username: <input type="text" name="username" required><br><br>
-        Password: <input type="password" name="password" required><br><br>
-        <button type="submit">Register</button>
+      <input type="text" name="username" placeholder="Username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Register</button>
     </form>
-    <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+    <div class="footer">Already have an account? <a href="{{ url_for('login') }}">Login here</a></div>
+  </div>
 </body>
 </html>
