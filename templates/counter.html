@@ -1,17 +1,92 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Counter</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Counter</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; font-family: 'Roboto', sans-serif; }
+    body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #00c6ff, #0072ff);
+    }
+
+    .card {
+      background: #fff;
+      padding: 50px 40px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      width: 400px;
+      text-align: center;
+      animation: fadeIn 0.8s ease-in-out;
+    }
+
+    @keyframes fadeIn { from {opacity:0; transform: translateY(-20px);} to {opacity:1; transform: translateY(0);} }
+
+    h1 { font-weight: 500; margin-bottom: 15px; color: #333; }
+    .counter {
+      font-size: 80px;
+      font-weight: 700;
+      margin: 20px 0;
+      color: #0072ff;
+      transition: transform 0.2s;
+    }
+    .counter.animate {
+      transform: scale(1.2);
+    }
+
+    button {
+      padding: 15px 30px;
+      font-size: 18px;
+      font-weight: 500;
+      background: #0072ff;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { background: #005ecb; }
+
+    .logout {
+      margin-top: 20px;
+      display: inline-block;
+      color: #0072ff;
+      text-decoration: none;
+      transition: 0.3s;
+    }
+    .logout:hover { text-decoration: underline; }
+
+  </style>
 </head>
 <body>
+  <div class="card">
     <h1>Hello {{ session.username }}!</h1>
-    <h2>Your Counter: {{ value }}</h2>
+    <div id="counter" class="counter">{{ value }}</div>
 
-    <form action="{{ url_for('increment') }}">
-        <button type="submit">Increment</button>
+    <form id="incrementForm" action="{{ url_for('increment') }}" method="get">
+      <button type="submit">Increment</button>
     </form>
 
-    <br>
-    <a href="{{ url_for('logout') }}">Logout</a>
+    <a href="{{ url_for('logout') }}" class="logout">Logout</a>
+  </div>
+
+  <script>
+    // Animate counter on increment
+    const counter = document.getElementById('counter');
+    const form = document.getElementById('incrementForm');
+
+    form.addEventListener('submit', () => {
+      counter.classList.add('animate');
+    });
+
+    counter.addEventListener('transitionend', () => {
+      counter.classList.remove('animate');
+    });
+  </script>
 </body>
 </html>
