@@ -1,8 +1,10 @@
 import os
-from flask import Flask, render_template, redirect
+from flask import Flask, render_template, redirect, request, session, url_for, flash
 import psycopg2
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")  # Replace in production
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -13,52 +15,113 @@ def init_db():
     conn = get_connection()
     cur = conn.cursor()
 
-    # Create table if not exists
+    # Users table
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS counter (
+        CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
-            value INTEGER NOT NULL
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
         );
     """)
 
-    # Ensure one row exists
-    cur.execute("SELECT * FROM counter WHERE id=1;")
-    if cur.fetchone() is None:
-        cur.execute("INSERT INTO counter (id, value) VALUES (1, 0);")
+    # Counter table (each user has one counter)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS counter (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id),
+            value INTEGER NOT NULL DEFAULT 0
+        );
+    """)
 
     conn.commit()
     cur.close()
     conn.close()
 
+# ------------------- Routes -------------------
 
 @app.route("/")
-def index():
-    # Ensure DB is initialized
-    init_db()
-
+def home():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    user_id = session["user_id"]
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT value FROM counter WHERE id=1;")
-    value = cur.fetchone()[0]
+    cur.execute("SELECT value FROM counter WHERE user_id=%s;", (user_id,))
+    row = cur.fetchone()
+    value = row[0] if row else 0
     cur.close()
     conn.close()
 
-    return render_template("index.html", value=value)
-
+    return render_template("counter.html", value=value)
 
 @app.route("/increment")
 def increment():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    user_id = session["user_id"]
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE counter SET value = value + 1 WHERE id=1;")
+    cur.execute("INSERT INTO counter (user_id, value) VALUES (%s, 1) ON CONFLICT (user_id) DO UPDATE SET value = counter.value + 1;", (user_id,))
     conn.commit()
     cur.close()
     conn.close()
+    return redirect(url_for("home"))
 
-    return redirect("/")
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        hashed = generate_password_hash(password)
 
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("INSERT INTO users (username, password) VALUES (%s, %s) RETURNING id;", (username, hashed))
+            user_id = cur.fetchone()[0]
+            conn.commit()
+            cur.close()
+            conn.close()
+            flash("Registration successful! Please login.", "success")
+            return redirect(url_for("login"))
+        except psycopg2.errors.UniqueViolation:
+            flash("Username already exists.", "error")
+            conn.rollback()
+            cur.close()
+            conn.close()
+    
+    return render_template("register.html")
 
-# For local testing only
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, password FROM users WHERE username=%s;", (username,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if user and check_password_hash(user[1], password):
+            session["user_id"] = user[0]
+            session["username"] = username
+            return redirect(url_for("home"))
+        else:
+            flash("Invalid credentials", "error")
+    
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+# ------------------- Run -------------------
 if __name__ == "__main__":
+    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
