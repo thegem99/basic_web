@@ -1,27 +1,55 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Counter App</title>
-    <style>
-        body {
-            font-family: Arial;
-            text-align: center;
-            margin-top: 100px;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 18px;
-            cursor: pointer;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Counter Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+body { background:#eef2f7; }
+.navbar { margin-bottom:2rem; }
+.counter { font-size:3rem; margin:2rem 0; }
+.wallet { font-size:1.2rem; margin-bottom:1rem; }
+.btn-increment { font-size:1.5rem; }
+</style>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
 
-    <h1>Counter Value: {{ value }}</h1>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">Hi {{username}}</a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        {% for game in games %}
+        <li class="nav-item">
+          <a class="nav-link" href="#">{{game}}</a>
+        </li>
+        {% endfor %}
+      </ul>
+      <span class="navbar-text me-3">Wallet: $<span id="wallet">{{wallet}}</span></span>
+      <a class="btn btn-outline-light" href="/logout">Logout</a>
+    </div>
+  </div>
+</nav>
 
-    <form action="/increment">
-        <button type="submit">Increment</button>
-    </form>
+<div class="container text-center">
+  <div class="counter">Counter: <span id="counter">{{counter}}</span></div>
+  <button class="btn btn-primary btn-increment">Increment</button>
+</div>
+
+<script>
+$(document).ready(function(){
+    $(".btn-increment").click(function(){
+        $.post("/increment", {}, function(data){
+            if(data.value !== undefined){
+                $("#counter").text(data.value);
+            }else{
+                alert(data.error);
+            }
+        });
+    });
+});
+</script>
 
 </body>
 </html>
