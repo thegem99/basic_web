@@ -4,7 +4,7 @@ import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")  # Use a real secret in production
+app.secret_key = os.environ.get("SECRET_KEY", "supersecretkey")  # Replace in production
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -13,6 +13,7 @@ def get_connection():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
 
 def init_db():
+    """Create tables if they don't exist"""
     conn = get_connection()
     cur = conn.cursor()
 
@@ -37,12 +38,14 @@ def init_db():
     cur.close()
     conn.close()
 
-# Auto-init DB on first request (works with Gunicorn on Railway)
-@app.before_first_request
-def setup():
+# Initialize DB on startup (works with Gunicorn)
+try:
     init_db()
+except Exception as e:
+    print("Database initialization failed:", e)
 
 # ------------------- Routes -------------------
+
 @app.route("/")
 def home():
     if "user_id" not in session:
@@ -67,7 +70,6 @@ def increment():
     user_id = session["user_id"]
     conn = get_connection()
     cur = conn.cursor()
-    # Insert row if missing, otherwise increment
     cur.execute("""
         INSERT INTO counter (user_id, value)
         VALUES (%s, 1)
